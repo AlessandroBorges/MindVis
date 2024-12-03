@@ -6,3 +6,6 @@ A visual mapping of IA / LLM reasoning
 - Create reasoning searchers (use logits from LLM probs)
 - Create 3D visualizer for domain 
 - Show paths of LLM reasoning
+
+
+(MindVis)[./dark_galaxy_s.png]

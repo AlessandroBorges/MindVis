@@ -17,7 +17,7 @@ class LlamaLogprobExtractor:
     def __init__(
         self, 
         model_path: str,
-        n_ctx: int = 2048,
+        n_ctx: int = 1024,
         n_gpu_layers: int = 0
     ):
         """
@@ -33,7 +33,7 @@ class LlamaLogprobExtractor:
             n_ctx=n_ctx,
             n_gpu_layers=n_gpu_layers,
             logits_all=True,  # Importante: habilita o cálculo de logits para todos os tokens
-            stop=[BOS,EOS,B_INST, E_INST, "</s>"],  # Stopwords importantes
+            stop=[BOS,EOS,B_INST, E_INST, "</s>","\n"],  # Stopwords importantes
             chat_format="llama-3"
         )
     
@@ -48,7 +48,7 @@ class LlamaLogprobExtractor:
         temperature: float = 0.2,
         top_k: int = 40,
         top_p: float = 0.95,
-        min_p: float = 0.05,
+        min_p: float = 0.08,
         typical_p: float = 1.0,
         n_probs: int = 5  # Número de top tokens para retornar logprobs
     ) -> Tuple[str, List[Dict]]:
@@ -71,12 +71,12 @@ class LlamaLogprobExtractor:
             min_p=min_p,
             typical_p=typical_p,
             logprobs=n_probs,  # Número de logprobs alternativos para cada token
-            echo=True  # Inclui o prompt na saída
+            #echo=True  # Inclui o prompt na saída
         )
         
         # Extrai o texto gerado
         generated_text = completion['choices'][0]['text']
-        
+        print("\n\nTexto gerado: ",generated_text)
         # Processa os logprobs
         logprobs_data = []
         
@@ -133,25 +133,24 @@ if __name__ == "__main__":
     # Inicializa o extrator
     extractor = LlamaLogprobExtractor(
         model_path= "G:/cache/lmstudio/models/lmstudio-community/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-Q6_K.gguf",
-        n_gpu_layers=99  # Ajuste conforme sua GPU
+        n_gpu_layers=0  # Ajuste conforme sua GPU
     )
     
     # Exemplo de prompt
-    prompt = "Qual é capital do Brasil?"
+    prompt = "Responda de forma suscinta e objetiva, completando a frase: A capital do Equador é "
     
     # Gera completion com logprobs
     generated_text, logprobs = extractor.get_logprobs_for_completion(
         prompt,       
         max_tokens=3,
-        temperature=0.1
+        temperature=0.0
     )
     
     # Analisa os resultados
     analysis = extractor.analyze_token_probabilities(logprobs)
     
-    # Imprime resultados
-    print(f"\n\nTexto gerado:\n{generated_text}\n")
-    print("Análise de probabilidades:")
+    # Imprime resultados   
+    print("\n\nAnálise de probabilidades:")
     print("#### Analysis:\n",analysis)
     
     print(f"\nTokens com alta confiança: {len(analysis['high_confidence_tokens'])}")

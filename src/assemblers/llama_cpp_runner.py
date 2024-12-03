@@ -1,6 +1,9 @@
 from llama_cpp import Llama
 from typing import List, Dict, Tuple
 import json
+from anytree import Node, RenderTree
+from anytree.exporter import JsonExporter
+import string
 
 # Template do Llama 2 Chat
 B_INST, E_INST = "<|start_header_id|>user<|end_header_id|>\n\n", "<|eot_id|>"
@@ -40,6 +43,8 @@ class LlamaLogprobExtractor:
     def create_prompt(self, instruction: str, system_prompt: str = DEFAULT_SYSTEM_PROMPT) -> str:
         """Cria o prompt formatado para o Llama 2 Chat"""
         return f"{B_INST} {B_SYS}{system_prompt}{E_SYS}{instruction} {E_INST}"
+    
+     
         
     def get_logprobs_for_completion(
         self,
@@ -94,7 +99,7 @@ class LlamaLogprobExtractor:
                 }
                 logprobs_data.append(entry)
         
-        return generated_text, logprobs_data
+        return completion, generated_text, logprobs_data
     
     def analyze_token_probabilities(
     self,
@@ -128,6 +133,70 @@ class LlamaLogprobExtractor:
         
         return analysis
 
+    def parse_logits(self, response, threshold: float = -2.0) -> Node:
+        """
+        Processa a resposta da API para extrair os logits e criar uma estrutura de árvore.
+        """
+        root = Node("Root")
+        for i, choice in enumerate(response.get("choices",[])):
+            logprobs = choice.get('logprobs', {}) or {}
+            
+            if logprobs is None:  # Add safety check
+                print("Warning: No logprobs returned in response")
+                continue
+            
+            tokens = logprobs.get('tokens', [])
+            top_logprobs = logprobs.get('top_logprobs', [])
+            
+            # Adiciona os tokens gerados à árvore
+            parent = root
+            for token, top_probs in zip(tokens, top_logprobs):
+                token_node = Node(f"Token: {token}", parent=parent)
+                for prob_token, logprob in top_probs.items():
+                    #skip if logprob is below threshold
+                    if logprob < threshold:
+                        continue
+                    # Skip if alternative token is just punctuation
+                    if prob_token.strip() in string.punctuation or (prob_token.startswith("▁") and prob_token.endswith("▁")):
+                        continue
+                    Node(f"{prob_token} (Logit: {logprob:.2f})", parent=token_node)
+                parent = token_node
+
+        return root
+
+    def save_tree_to_json(self, root, filename):
+        """
+        Salva a árvore de logits em um arquivo JSON.
+        """
+        exporter = JsonExporter(indent=2, sort_keys=True)
+        with open(filename, 'w') as f:
+            f.write(exporter.export(root))
+
+    def print_tree(self, root):
+        """
+        Imprime a árvore de logits de forma hierárquica.
+        """
+        for pre, _, node in RenderTree(root):
+            print(f"{pre}{node.name}")
+
+    def save_response_to_file(self, response, filename):
+        """
+        Salva a resposta completa da API em um arquivo JSON.
+        Handles numpy arrays and other special objects by converting them to standard Python types.
+        """
+        def convert_to_serializable(obj):
+            import numpy as np
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            if isinstance(obj, np.integer):
+                return int(obj)
+            if isinstance(obj, np.floating):
+                return float(obj)
+            return str(obj)  # fallback for other non-serializable objects
+            
+        with open(filename, 'w') as f:
+            json.dump(response, f, indent=2, default=convert_to_serializable)
+    
 # Exemplo de uso
 if __name__ == "__main__":
     # Inicializa o extrator
@@ -137,29 +206,37 @@ if __name__ == "__main__":
     )
     
     # Exemplo de prompt
-    prompt = "Responda de forma suscinta e objetiva, completando a frase: A capital do Equador é "
+    prompt = "Responda de forma suscinta e objetiva, sem enumerações ou listas, completando a frase: O rei deve sábio pois "
     
     # Gera completion com logprobs
-    generated_text, logprobs = extractor.get_logprobs_for_completion(
+    response, generated_text, logprobs = extractor.get_logprobs_for_completion(
         prompt,       
-        max_tokens=3,
-        temperature=0.0
+        max_tokens=10,
+        temperature=0.2
     )
     
     # Analisa os resultados
-    analysis = extractor.analyze_token_probabilities(logprobs)
+    analysis = extractor.analyze_token_probabilities(logprobs, threshold=-4.0)
     
     # Imprime resultados   
     print("\n\nAnálise de probabilidades:")
-    print("#### Analysis:\n",analysis)
-    
-    print(f"\nTokens com alta confiança: {len(analysis['high_confidence_tokens'])}")
-    print(f"\nTokens com baixa confiança: {len(analysis['low_confidence_tokens'])}")
-    print(f"\nTotal de tokens: {analysis['token_count']}")
-    print(f"\nLogprobs médio: {analysis['average_logprob']:.3f}")
-    print(json.dumps(analysis, indent=2, ensure_ascii=False))
+    #print("#### Analysis:\n",analysis)    
+    #print(f"\nTokens com alta confiança: {len(analysis['high_confidence_tokens'])}")
+    #print(f"\nTokens com baixa confiança: {len(analysis['low_confidence_tokens'])}")
+    #print(f"\nTotal de tokens: {analysis['token_count']}")
+    #print(f"\nLogprobs médio: {analysis['average_logprob']:.3f}")
+    #print(json.dumps(analysis, indent=2, ensure_ascii=False))
     
     # Exemplo de tokens com alta confiança
     print("\nTokens com alta confiança:")
     for token, prob in analysis['high_confidence_tokens']:
-        print(f"Token: {token}, LogProb: {prob:.3f}")
+        if prob >=-2.0:
+            print(f"Token: {token}, LogProb: {prob:.3f}")
+        
+    # outro metodo, complementar:
+    root = extractor.parse_logits(response, threshold=-4.0)
+
+    # Imprimir e salvar os resultados
+    extractor.print_tree(root)
+    extractor.save_tree_to_json(root, "logit_tree.json")
+    extractor.save_response_to_file(response, "api_response.json")    

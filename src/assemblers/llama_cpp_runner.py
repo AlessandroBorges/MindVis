@@ -1,3 +1,4 @@
+import os
 from llama_cpp import Llama
 from typing import List, Dict, Tuple
 import json
@@ -55,7 +56,8 @@ class LlamaLogprobExtractor:
         top_p: float = 0.95,
         min_p: float = 0.08,
         typical_p: float = 1.0,
-        n_probs: int = 5  # Número de top tokens para retornar logprobs
+        n_probs: int = 5,  # Número de top tokens para retornar logprobs
+        seed = 42
     ) -> Tuple[str, List[Dict]]:
         """
         Gera uma completion e retorna os logprobs dos tokens mais prováveis.
@@ -77,6 +79,7 @@ class LlamaLogprobExtractor:
             typical_p=typical_p,
             logprobs=n_probs,  # Número de logprobs alternativos para cada token
             #echo=True  # Inclui o prompt na saída
+            seed=seed
         )
         
         # Extrai o texto gerado
@@ -204,17 +207,18 @@ if __name__ == "__main__":
         model_path= "G:/cache/lmstudio/models/lmstudio-community/Llama-3.2-3B-Instruct-GGUF/Llama-3.2-3B-Instruct-Q6_K.gguf",
         n_gpu_layers=0  # Ajuste conforme sua GPU
     )
-    
+    os.system('cls')
     # Exemplo de prompt
     prompt = "Responda de forma suscinta e objetiva, sem enumerações ou listas, completando a frase: O rei deve ser responsável pois "
-    
+ 
     # Gera completion com logprobs
     response, generated_text, logprobs = extractor.get_logprobs_for_completion(
         prompt,       
-        max_tokens=15,
-        temperature=0.2
+        max_tokens=20,
+        temperature=0.3
     )
     
+    print("\n\nPrompt:\n \"",prompt,"\"")    
     # Analisa os resultados
     analysis = extractor.analyze_token_probabilities(logprobs, threshold=-4.0)
     
@@ -230,7 +234,7 @@ if __name__ == "__main__":
     # Exemplo de tokens com alta confiança
     print("\nTokens com alta confiança:")
     for token, prob in analysis['high_confidence_tokens']:
-        if prob >=-2.0:
+        if prob >=-3.0:
             print(f"Token: {token}, LogProb: {prob:.3f}")
         
     # outro metodo, complementar:

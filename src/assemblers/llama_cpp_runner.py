@@ -206,12 +206,12 @@ if __name__ == "__main__":
     )
     
     # Exemplo de prompt
-    prompt = "Responda de forma suscinta e objetiva, sem enumerações ou listas, completando a frase: O rei deve sábio pois "
+    prompt = "Responda de forma suscinta e objetiva, sem enumerações ou listas, completando a frase: O rei deve ser responsável pois "
     
     # Gera completion com logprobs
     response, generated_text, logprobs = extractor.get_logprobs_for_completion(
         prompt,       
-        max_tokens=10,
+        max_tokens=15,
         temperature=0.2
     )
     
